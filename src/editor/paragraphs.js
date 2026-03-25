@@ -36,6 +36,45 @@ export function ensureParagraphPlaceholder(paragraph) {
   }
 }
 
+function hasNestedBlockContent(paragraph) {
+  if (!(paragraph instanceof HTMLElement)) {
+    return false;
+  }
+
+  const blockSelectors = [
+    "div",
+    "p",
+    "section",
+    "article",
+    "blockquote",
+    "ul",
+    "ol",
+    "li",
+    "pre",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+  ];
+
+  return blockSelectors.some((selector) => paragraph.querySelector(selector));
+}
+
+function expandNestedParagraph(paragraph) {
+  const normalized = (paragraph.innerText || "").replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+
+  if (lines.length === 0) {
+    return [createEmptyParagraph()];
+  }
+
+  return lines.map((line) =>
+    line.length > 0 ? createParagraphFromText(line) : createEmptyParagraph(),
+  );
+}
+
 export function normalizeEditorStructure(editor) {
   if (editor.childNodes.length === 0) {
     editor.appendChild(createEmptyParagraph());
@@ -62,6 +101,15 @@ export function normalizeEditorStructure(editor) {
     }
 
     ensureParagraphPlaceholder(node);
+
+    if (hasNestedBlockContent(node)) {
+      const replacementParagraphs = expandNestedParagraph(node);
+      const fragment = document.createDocumentFragment();
+      replacementParagraphs.forEach((paragraph) => {
+        fragment.appendChild(paragraph);
+      });
+      editor.replaceChild(fragment, node);
+    }
   }
 
   if (editor.children.length === 0) {

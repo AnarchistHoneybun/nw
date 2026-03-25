@@ -8,6 +8,7 @@ import {
   ensureValidCaret,
   getActiveParagraph,
   insertPlainTextAtSelection,
+  splitParagraphAtSelection,
   setActiveParagraph,
 } from "./editor/selection.js";
 
@@ -120,6 +121,14 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   editor.addEventListener("keydown", async (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      splitParagraphAtSelection(editor);
+      markUnsavedChanges();
+      updateFocusParagraph();
+      return;
+    }
+
     if (event.ctrlKey || event.metaKey) {
       if (event.key === "s" || event.key === "S") {
         event.preventDefault();

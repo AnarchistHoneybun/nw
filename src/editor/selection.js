@@ -305,3 +305,46 @@ export function insertPlainTextAtSelection(editor, text) {
   selection.removeAllRanges();
   selection.addRange(collapseRange);
 }
+
+export function splitParagraphAtSelection(editor) {
+  let range = getSelectionRangeInEditor(editor);
+  if (!range) {
+    placeCaretAtEditorEnd(editor);
+    range = getSelectionRangeInEditor(editor);
+  }
+
+  if (!range) {
+    return null;
+  }
+
+  if (!range.collapsed) {
+    range.deleteContents();
+    normalizeEditorStructure(editor);
+    ensureValidCaret(editor);
+    range = getSelectionRangeInEditor(editor);
+    if (!range) {
+      return null;
+    }
+  }
+
+  const startParagraph = getTopLevelParagraphForNode(
+    editor,
+    range.startContainer,
+  );
+  if (!startParagraph) {
+    return null;
+  }
+
+  const trailingRange = document.createRange();
+  trailingRange.selectNodeContents(startParagraph);
+  trailingRange.setStart(range.startContainer, range.startOffset);
+  const trailingFragment = trailingRange.extractContents();
+
+  ensureParagraphPlaceholder(startParagraph);
+
+  const newParagraph = createParagraphFromFragment(trailingFragment);
+  startParagraph.after(newParagraph);
+  moveCaretToParagraphStart(newParagraph);
+
+  return newParagraph;
+}
