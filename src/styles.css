@@ -1,0 +1,175 @@
+:root {
+  font-family:
+    "Inter",
+    "Segoe UI",
+    Roboto,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+
+  --paper: #f6f4f1;
+  --stone: #e4ded2;
+  --coral: #f95c4b;
+  --black: #000000;
+  --focus: #f95c4b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--black);
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  height: 52px;
+  background: var(--stone);
+  border-bottom: 0;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
+  align-items: center;
+  padding: 0 12px;
+}
+
+.header-side {
+  min-width: 120px;
+}
+
+.header-actions {
+  min-width: 120px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.file-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--coral);
+  text-align: center;
+  user-select: none;
+}
+
+.editor-layout {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 24px 32px;
+}
+
+.editor-container {
+  width: min(980px, 100%);
+  height: 100%;
+  position: relative;
+}
+
+.editor-surface {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 52px - 48px);
+  padding: 28px 36px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--black);
+  caret-color: var(--black);
+  outline: none;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.editor-surface:focus-visible {
+  box-shadow: none;
+}
+
+.editor-container.focus-mode .editor-surface {
+  color: color-mix(in srgb, var(--black) 34%, var(--paper));
+}
+
+.editor-surface > .editor-paragraph {
+  min-height: 1.5em;
+}
+
+.editor-container.focus-mode
+  .editor-surface
+  > .editor-paragraph.is-active-paragraph {
+  color: var(--black);
+}
+
+.focus-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  cursor: pointer;
+}
+
+.focus-toggle-label {
+  color: var(--coral);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.focus-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.focus-toggle-track {
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--coral) 75%, white);
+  background: color-mix(in srgb, var(--coral) 24%, var(--stone));
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+}
+
+.focus-toggle-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--paper) 85%, white);
+  border: 1px solid color-mix(in srgb, var(--coral) 45%, white);
+  transform: translateX(0);
+  transition: transform 180ms ease;
+}
+
+.focus-toggle input:checked + .focus-toggle-track {
+  background: color-mix(in srgb, var(--coral) 60%, var(--stone));
+}
+
+.focus-toggle input:checked + .focus-toggle-track .focus-toggle-thumb {
+  transform: translateX(18px);
+}
+
+.focus-toggle input:focus-visible + .focus-toggle-track {
+  outline: 2px solid color-mix(in srgb, var(--coral) 75%, black);
+  outline-offset: 2px;
+}

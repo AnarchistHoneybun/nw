@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nw Editor</title>
+    <script type="module" src="/main.js" defer></script>
+  </head>
+
+  <body>
+    <div class="app-shell">
+      <header class="app-header" role="banner">
+        <div class="header-side" aria-hidden="true"></div>
+        <h1 class="file-name" id="file-name">untitled.txt</h1>
+        <div class="header-actions">
+          <label
+            class="focus-toggle"
+            for="focus-mode-toggle"
+            title="Toggle focus mode"
+          >
+            <span class="focus-toggle-label">Focus</span>
+            <input
+              id="focus-mode-toggle"
+              type="checkbox"
+              role="switch"
+              aria-label="Toggle focus mode"
+            />
+            <span class="focus-toggle-track" aria-hidden="true">
+              <span class="focus-toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </header>
+
+      <main class="editor-layout" role="main">
+        <section class="editor-container" aria-label="Text editor">
+          <div
+            id="editor"
+            class="editor-surface"
+            contenteditable="true"
+            spellcheck="false"
+            aria-label="Editor content"
+          ></div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
