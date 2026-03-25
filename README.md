@@ -1,7 +1,20 @@
-# Tauri + Vanilla
+# now_writing
 
-This template should help get you started developing with Tauri in vanilla HTML, CSS and Javascript.
+A minimal writing app, with focus mode to minimize distractions.
 
-## Recommended IDE Setup
+## Focus Mode
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+<table>
+  <tr>
+    <td align="center">
+      <img src="screenshots/no_focus.png" alt="Editor without focus mode" width="400" />
+      <br />
+      <strong>Focus Mode Disabled</strong>
+    </td>
+    <td align="center">
+      <img src="screenshots/focus.png" alt="Editor with focus mode" width="400" />
+      <br />
+      <strong>Focus Mode Enabled</strong>
+    </td>
+  </tr>
+</table>
