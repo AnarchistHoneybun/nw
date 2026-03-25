@@ -1,5 +1,16 @@
+@font-face {
+  font-family: "InterVariable";
+  src:
+    url("./assets/fonts/intervariable.ttf") format("truetype"),
+    url("./assets/fonts/InterVariable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   font-family:
+    "InterVariable",
     "Inter",
     "Segoe UI",
     Roboto,
@@ -116,6 +127,17 @@ body {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+  font-family:
+    "InterVariable",
+    "Inter",
+    "Segoe UI",
+    Roboto,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  font-size: 1.125rem;
+  line-height: 1.72;
+  font-weight: 420;
 }
 
 .editor-surface:focus-visible {
