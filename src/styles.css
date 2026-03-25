@@ -15,10 +15,12 @@
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
 
-  --paper: #f6f4f1;
-  --stone: #e4ded2;
+  --paper: #f7f7f7;
+  --stone: #f2f3f3;
   --coral: #f95c4b;
-  --black: #000000;
+  --black: #0f0f0f;
+  --dimmed: #dfdcdc;
+  --header-line: #e5e6e6;
   --focus: #f95c4b;
 }
 
@@ -46,7 +48,7 @@ body {
 .app-header {
   height: 52px;
   background: var(--stone);
-  border-bottom: 0;
+  border-bottom: 1px solid var(--header-line);
   display: grid;
   grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
   align-items: center;
@@ -107,7 +109,7 @@ body {
   padding: 28px 36px;
   border: 0;
   border-radius: 0;
-  background: transparent;
+  background: var(--paper);
   color: var(--black);
   caret-color: var(--black);
   outline: none;
@@ -121,7 +123,7 @@ body {
 }
 
 .editor-container.focus-mode .editor-surface {
-  color: color-mix(in srgb, var(--black) 34%, var(--paper));
+  color: var(--dimmed);
 }
 
 .editor-surface > .editor-paragraph {
