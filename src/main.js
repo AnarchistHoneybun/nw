@@ -1,5 +1,8 @@
 const FOCUS_MODE_STORAGE_KEY = "nw.focusMode";
 
+let currentFilePath = null;
+let hasUnsavedChanges = false;
+
 function readFocusModePreference() {
   return localStorage.getItem(FOCUS_MODE_STORAGE_KEY) === "true";
 }
@@ -429,6 +432,248 @@ function setActiveParagraph(editor, paragraph) {
   }
 }
 
+function updateUnsavedIndicator() {
+  const fileNameElement = document.querySelector("#file-name");
+  const filenameText = document.querySelector("#filename-text");
+
+  if (!fileNameElement || !filenameText) {
+    return;
+  }
+
+  if (hasUnsavedChanges) {
+    fileNameElement.classList.add("has-unsaved");
+  } else {
+    fileNameElement.classList.remove("has-unsaved");
+  }
+
+  const displayName = currentFilePath
+    ? currentFilePath.split(/[\\/]/).pop()
+    : "untitled.txt";
+  filenameText.textContent = displayName;
+}
+
+function getEditorContent() {
+  const editor = document.querySelector("#editor");
+  if (!editor) return "";
+
+  const paragraphElements = Array.from(editor.children).filter(
+    (child) => child.classList.contains("editor-paragraph"),
+  );
+
+  const paragraphs = paragraphElements.map((para) => {
+    const lines = [];
+    for (const node of para.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent || "";
+        if (text.length > 0) {
+          lines.push(text);
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE && node.nodeName === "BR") {
+        lines.push("\n");
+      }
+    }
+    return lines.join("");
+  });
+
+  return paragraphs.join("\n\n");
+}
+
+function markUnsavedChanges() {
+  hasUnsavedChanges = true;
+  updateUnsavedIndicator();
+}
+
+function clearUnsavedChanges() {
+  hasUnsavedChanges = false;
+  updateUnsavedIndicator();
+}
+
+async function promptUnsavedChanges(action) {
+  if (!hasUnsavedChanges) {
+    return true;
+  }
+
+  const filename = currentFilePath
+    ? currentFilePath.split(/[\\/]/).pop()
+    : "untitled.txt";
+
+  const value = confirm(`Save "${filename}" before ${action}?`);
+  if (!value) {
+    return false;
+  }
+
+  try {
+    if (currentFilePath) {
+      await saveCurrentFile();
+    } else {
+      await saveFileAs();
+    }
+    return true;
+  } catch {
+    alert("Could not save file. Cancelled operation.");
+    return false;
+  }
+}
+
+async function saveCurrentFile() {
+  const editor = document.querySelector("#editor");
+  if (!editor) return;
+
+  const content = getEditorContent();
+
+  if (!currentFilePath) {
+    console.log("No current file path, calling saveFileAs");
+    await saveFileAs();
+    return;
+  }
+
+  try {
+    if (!window.__TAURI__) {
+      alert("Tauri not initialized");
+      return;
+    }
+    const { invoke } = window.__TAURI__.core;
+    console.log("Saving to:", currentFilePath);
+    console.log("Content length:", content.length);
+    const result = await invoke("save_file", {
+      path: currentFilePath,
+      content: content,
+    });
+    console.log("Save result:", result);
+    clearUnsavedChanges();
+  } catch (error) {
+    console.error("Save error:", error);
+    alert(`Could not save file: ${error}`);
+  }
+}
+
+async function saveFileAs() {
+  const editor = document.querySelector("#editor");
+  if (!editor) return;
+
+  const content = getEditorContent();
+  const suggestedName = currentFilePath
+    ? currentFilePath.split(/[\\/]/).pop()
+    : "untitled.txt";
+
+  try {
+    if (!window.__TAURI__) {
+      alert("Tauri not initialized");
+      return;
+    }
+    const { invoke } = window.__TAURI__.core;
+    console.log("Show save dialog, suggested:", suggestedName);
+    
+    let path;
+    try {
+      path = await invoke("show_save_dialog", {
+        suggestedName: suggestedName,
+      });
+    } catch (invokeError) {
+      console.error("Dialog invoke error:", invokeError);
+      throw invokeError;
+    }
+
+    console.log("Dialog result:", path);
+    if (!path) {
+      console.log("No path selected, cancelling save");
+      return;
+    }
+
+    console.log("Saving to:", path);
+    console.log("Content length:", content.length);
+    const result = await invoke("save_file", {
+      path: path,
+      content: content,
+    });
+    console.log("Save result:", result);
+
+    currentFilePath = path;
+    clearUnsavedChanges();
+    console.log("Save complete");
+  } catch (error) {
+    console.error("SaveFileAs error:", error);
+    alert(`Could not save file: ${error}`);
+  }
+}
+
+async function openFile() {
+  if (!(await promptUnsavedChanges("opening a file"))) {
+    return;
+  }
+
+  try {
+    const { invoke } = window.__TAURI__.core;
+    const path = await invoke("show_open_dialog");
+
+    if (!path) return;
+
+    const content = await invoke("open_file", {
+      path: path,
+    });
+
+    const editor = document.querySelector("#editor");
+    if (!editor) return;
+
+    currentFilePath = path;
+
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+    }
+
+    while (editor.firstChild) {
+      editor.removeChild(editor.firstChild);
+    }
+
+    const paragraphs = content
+      .split(/\n\s*\n+/)
+      .filter((p) => p.trim().length > 0);
+
+    if (paragraphs.length === 0) {
+      editor.appendChild(createEmptyParagraph());
+    } else {
+      paragraphs.forEach((paragraphText) => {
+        const paragraph = createParagraphFromText(paragraphText);
+        editor.appendChild(paragraph);
+      });
+    }
+
+    normalizeEditorStructure(editor);
+    clearUnsavedChanges();
+    updateUnsavedIndicator();
+    editor.focus();
+  } catch (error) {
+    alert(`Could not open file: ${error}`);
+  }
+}
+
+async function newFile() {
+  if (!(await promptUnsavedChanges("creating a new file"))) {
+    return;
+  }
+
+  const editor = document.querySelector("#editor");
+  if (!editor) return;
+
+  const selection = window.getSelection();
+  if (selection) {
+    selection.removeAllRanges();
+  }
+
+  while (editor.firstChild) {
+    editor.removeChild(editor.firstChild);
+  }
+  editor.appendChild(createEmptyParagraph());
+  currentFilePath = null;
+  clearUnsavedChanges();
+  updateUnsavedIndicator();
+  normalizeEditorStructure(editor);
+  
+  moveCaretToParagraphStart(editor.firstElementChild);
+  editor.focus();
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   const editor = document.querySelector("#editor");
   const editorContainer = document.querySelector(".editor-container");
@@ -476,6 +721,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   editor.addEventListener("input", () => {
+    markUnsavedChanges();
     updateFocusParagraph();
   });
   editor.addEventListener("paste", (event) => {
@@ -488,9 +734,32 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     insertPlainTextAtSelection(editor, normalizedText);
+    markUnsavedChanges();
     updateFocusParagraph();
   });
-  editor.addEventListener("keydown", (event) => {
+  editor.addEventListener("keydown", async (event) => {
+    if (event.ctrlKey || event.metaKey) {
+      if (event.key === "s" || event.key === "S") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          await saveFileAs();
+        } else {
+          await saveCurrentFile();
+        }
+        return;
+      }
+      if (event.key === "o" || event.key === "O") {
+        event.preventDefault();
+        await openFile();
+        return;
+      }
+      if (event.key === "n" || event.key === "N") {
+        event.preventDefault();
+        await newFile();
+        return;
+      }
+    }
+
     if (event.key === "Backspace" || event.key === "Delete") {
       window.requestAnimationFrame(() => updateFocusParagraph());
     }
@@ -511,6 +780,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   normalizeEditorStructure(editor);
+  updateUnsavedIndicator();
 
   applyFocusMode(focusModeEnabled);
   editor.focus();

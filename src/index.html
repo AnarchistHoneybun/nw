@@ -12,7 +12,15 @@
     <div class="app-shell">
       <header class="app-header" role="banner">
         <div class="header-side" aria-hidden="true"></div>
-        <h1 class="file-name" id="file-name">untitled.txt</h1>
+        <h1 class="file-name" id="file-name">
+          <span
+            id="unsaved-indicator"
+            class="unsaved-indicator"
+            aria-hidden="true"
+            >●</span
+          >
+          <span id="filename-text">untitled.txt</span>
+        </h1>
         <div class="header-actions">
           <label
             class="focus-toggle"

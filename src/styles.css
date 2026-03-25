@@ -70,6 +70,21 @@ body {
   color: var(--coral);
   text-align: center;
   user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.unsaved-indicator {
+  font-size: 0.75rem;
+  color: var(--coral);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.file-name.has-unsaved .unsaved-indicator {
+  opacity: 1;
 }
 
 .editor-layout {
