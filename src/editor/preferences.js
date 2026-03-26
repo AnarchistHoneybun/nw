@@ -1,8 +1,11 @@
 const FOCUS_MODE_STORAGE_KEY = "nw.focusMode";
 const FOCUS_LEVEL_STORAGE_KEY = "nw.focusLevel";
+const FONT_STORAGE_KEY = "nw.font";
 
 const DEFAULT_FOCUS_LEVEL = "paragraph";
 const FOCUS_LEVEL_VALUES = new Set(["paragraph", "sentence"]);
+const DEFAULT_FONT = "inter";
+const FONT_VALUES = new Set(["inter", "plex-serif"]);
 
 export function readFocusModePreference() {
   return localStorage.getItem(FOCUS_MODE_STORAGE_KEY) === "true";
@@ -25,4 +28,17 @@ export function writeFocusLevelPreference(level) {
     ? level
     : DEFAULT_FOCUS_LEVEL;
   localStorage.setItem(FOCUS_LEVEL_STORAGE_KEY, normalizedLevel);
+}
+
+export function readFontPreference() {
+  const value = localStorage.getItem(FONT_STORAGE_KEY);
+  if (!value || !FONT_VALUES.has(value)) {
+    return DEFAULT_FONT;
+  }
+  return value;
+}
+
+export function writeFontPreference(font) {
+  const normalizedFont = FONT_VALUES.has(font) ? font : DEFAULT_FONT;
+  localStorage.setItem(FONT_STORAGE_KEY, normalizedFont);
 }

@@ -5,6 +5,8 @@ import {
   readFocusModePreference,
   writeFocusLevelPreference,
   writeFocusModePreference,
+  readFontPreference,
+  writeFontPreference,
 } from "./editor/preferences.js";
 import {
   ensureValidCaret,
@@ -81,7 +83,10 @@ const fileOperations = createFileOperations({
   updateUnsavedIndicator,
 });
 
-window.addEventListener("DOMContentLoaded", () => {
+// Initialize editor when DOM is ready (defer ensures this runs after DOM parsing)
+(function initialize() {
+  console.log("Initializing app...");
+
   const editor = document.querySelector("#editor");
   const editorContainer = document.querySelector(".editor-container");
   const focusToggleButton = document.querySelector("#focus-toggle-button");
@@ -93,6 +98,17 @@ window.addEventListener("DOMContentLoaded", () => {
   const focusControl = document.querySelector("#focus-control");
   const appShell = document.querySelector(".app-shell");
 
+  console.log("DOM elements found:", {
+    editor: !!editor,
+    editorContainer: !!editorContainer,
+    focusToggleButton: !!focusToggleButton,
+    focusMenuButton: !!focusMenuButton,
+    focusLevelMenu: !!focusLevelMenu,
+    focusLevelOptions: focusLevelOptions.length,
+    focusControl: !!focusControl,
+    appShell: !!appShell,
+  });
+
   if (
     !editor ||
     !editorContainer ||
@@ -102,6 +118,7 @@ window.addEventListener("DOMContentLoaded", () => {
     !focusControl ||
     !appShell
   ) {
+    console.error("Missing required DOM elements! App initialization failed.");
     return;
   }
 
@@ -661,6 +678,128 @@ window.addEventListener("DOMContentLoaded", () => {
     updateFocusParagraph({ followCaret: false });
   });
 
+  // Menu handling
+  const menuButton = document.querySelector("#menu-button");
+  const menuScreen = document.querySelector("#menu-screen");
+  const menuCloseButton = document.querySelector("#menu-close-button");
+  const fontOptions = Array.from(document.querySelectorAll(".font-option"));
+  const menuIconTabs = Array.from(document.querySelectorAll(".menu-icon-tab"));
+  const menuSections = Array.from(document.querySelectorAll(".menu-section"));
+
+  console.log("Menu elements found:", {
+    menuButton: !!menuButton,
+    menuScreen: !!menuScreen,
+    menuCloseButton: !!menuCloseButton,
+    fontOptions: fontOptions.length,
+    menuIconTabs: menuIconTabs.length,
+    menuSections: menuSections.length,
+  });
+
+  if (
+    menuButton &&
+    menuScreen &&
+    menuCloseButton &&
+    fontOptions.length > 0 &&
+    menuIconTabs.length > 0 &&
+    menuSections.length > 0
+  ) {
+    console.log("Setting up menu event listeners...");
+    let menuOpen = false;
+    let currentFont = readFontPreference();
+    let currentTab = "typography";
+
+    function applyFont(font) {
+      currentFont = font;
+      writeFontPreference(font);
+
+      if (font === "plex-serif") {
+        editor.style.fontFamily = '"IBMPlexSerif", serif';
+      } else {
+        editor.style.fontFamily =
+          '"InterVariable", "Inter", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, sans-serif';
+      }
+
+      // Update active button
+      fontOptions.forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.font === font);
+      });
+    }
+
+    function switchMenuTab(tabName) {
+      currentTab = tabName;
+
+      // Update tab buttons
+      menuIconTabs.forEach((tab) => {
+        const isActive = tab.dataset.tab === tabName;
+        tab.classList.toggle("active", isActive);
+      });
+
+      // Update sections
+      menuSections.forEach((section) => {
+        const isActive = section.dataset.tab === tabName;
+        section.classList.toggle("active", isActive);
+      });
+    }
+
+    function openMenu() {
+      console.log("Opening menu...");
+      menuOpen = true;
+      menuScreen.hidden = false;
+      menuButton.setAttribute("aria-expanded", "true");
+      console.log("Menu opened, menuScreen.hidden:", menuScreen.hidden);
+    }
+
+    function closeMenu() {
+      console.log("Closing menu...");
+      menuOpen = false;
+      menuScreen.hidden = true;
+      menuButton.setAttribute("aria-expanded", "false");
+      editor.focus();
+    }
+
+    menuButton.addEventListener("click", () => {
+      console.log("Menu button clicked! menuOpen:", menuOpen);
+      if (menuOpen) {
+        closeMenu();
+      } else {
+        openMenu();
+      }
+    });
+
+    menuCloseButton.addEventListener("click", () => {
+      closeMenu();
+    });
+
+    menuIconTabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const tabName = tab.dataset.tab;
+        if (tabName) {
+          switchMenuTab(tabName);
+        }
+      });
+    });
+
+    fontOptions.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const font = btn.dataset.font;
+        if (font) {
+          applyFont(font);
+        }
+      });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && menuOpen) {
+        closeMenu();
+      }
+    });
+
+    // Initialize menu state
+    switchMenuTab("typography");
+    applyFont(currentFont);
+    closeMenu();
+  }
+
   normalizeEditorStructure(editor);
   updateUnsavedIndicator();
   updateWordCount();
@@ -670,4 +809,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
   applyFocusMode(focusModeEnabled);
   editor.focus();
-});
+
+  console.log("App initialization complete!");
+})();
