@@ -22,22 +22,54 @@
           <span id="filename-text">untitled.txt</span>
         </h1>
         <div class="header-actions">
-          <label
-            class="focus-toggle"
-            for="focus-mode-toggle"
-            title="Toggle focus mode (Ctrl/Cmd+Shift+F)"
-          >
-            <span class="focus-toggle-label">Focus</span>
-            <input
-              id="focus-mode-toggle"
-              type="checkbox"
-              role="switch"
+          <div class="focus-control" id="focus-control">
+            <button
+              id="focus-toggle-button"
+              class="focus-icon-button"
+              type="button"
               aria-label="Toggle focus mode"
-            />
-            <span class="focus-toggle-track" aria-hidden="true">
-              <span class="focus-toggle-thumb"></span>
-            </span>
-          </label>
+              aria-pressed="false"
+              title="Toggle focus mode (Ctrl/Cmd+Shift+F)"
+            >
+              ○
+            </button>
+            <button
+              id="focus-menu-button"
+              class="focus-menu-button"
+              type="button"
+              aria-label="Select focus level"
+              aria-expanded="false"
+              aria-controls="focus-level-menu"
+              title="Choose focus level"
+            >
+              ⌄
+            </button>
+            <div
+              id="focus-level-menu"
+              class="focus-level-menu"
+              role="menu"
+              hidden
+            >
+              <button
+                type="button"
+                class="focus-level-option"
+                data-focus-level="paragraph"
+                role="menuitemradio"
+                aria-checked="true"
+              >
+                Paragraph
+              </button>
+              <button
+                type="button"
+                class="focus-level-option"
+                data-focus-level="sentence"
+                role="menuitemradio"
+                aria-checked="false"
+              >
+                Sentence
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
