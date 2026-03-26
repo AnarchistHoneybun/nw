@@ -56,6 +56,19 @@ body {
   flex-direction: column;
 }
 
+.app-shell.focus-mode-fullscreen .app-header {
+  display: none;
+}
+
+.app-shell.focus-mode-fullscreen .editor-layout {
+  padding: 0 20px;
+}
+
+.app-shell.focus-mode-fullscreen .editor-container {
+  width: min(100%, 1080px);
+  margin: 0 auto;
+}
+
 .app-header {
   height: 52px;
   background: var(--stone);
@@ -138,6 +151,12 @@ body {
   font-size: 1.125rem;
   line-height: 1.72;
   font-weight: 420;
+}
+
+.app-shell.focus-mode-fullscreen .editor-surface {
+  min-height: 100vh;
+  padding-left: 44px;
+  padding-right: 44px;
 }
 
 .editor-surface:focus-visible {

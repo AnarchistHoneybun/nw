@@ -59,8 +59,9 @@ window.addEventListener("DOMContentLoaded", () => {
   const editor = document.querySelector("#editor");
   const editorContainer = document.querySelector(".editor-container");
   const focusModeToggle = document.querySelector("#focus-mode-toggle");
+  const appShell = document.querySelector(".app-shell");
 
-  if (!editor || !editorContainer || !focusModeToggle) {
+  if (!editor || !editorContainer || !focusModeToggle || !appShell) {
     return;
   }
 
@@ -88,6 +89,7 @@ window.addEventListener("DOMContentLoaded", () => {
     focusModeEnabled = enabled;
     focusModeToggle.checked = enabled;
     editorContainer.classList.toggle("focus-mode", enabled);
+    appShell.classList.toggle("focus-mode-fullscreen", enabled);
     writeFocusModePreference(enabled);
 
     if (enabled) {
@@ -154,6 +156,22 @@ window.addEventListener("DOMContentLoaded", () => {
     if (event.key === "Backspace" || event.key === "Delete") {
       window.requestAnimationFrame(() => updateFocusParagraph());
     }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    const isFocusShortcut =
+      (event.ctrlKey || event.metaKey) &&
+      event.shiftKey &&
+      !event.altKey &&
+      event.code === "KeyF";
+
+    if (!isFocusShortcut) {
+      return;
+    }
+
+    event.preventDefault();
+    applyFocusMode(!focusModeEnabled);
+    editor.focus();
   });
 
   editor.addEventListener("keyup", () => updateFocusParagraph());
