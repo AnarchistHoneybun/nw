@@ -50,6 +50,27 @@ function clearUnsavedChanges() {
   updateUnsavedIndicator();
 }
 
+function updateWordCount() {
+  const wordCountElement = document.querySelector("#word-count");
+  if (!wordCountElement) {
+    return;
+  }
+
+  const editor = document.querySelector("#editor");
+  if (!editor) {
+    return;
+  }
+
+  const text = editor.textContent || "";
+  const words = text
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0).length;
+
+  const pluralSuffix = words === 1 ? "" : "s";
+  wordCountElement.textContent = `${words} word${pluralSuffix}`;
+}
+
 const fileOperations = createFileOperations({
   getCurrentFilePath: () => currentFilePath,
   setCurrentFilePath: (path) => {
@@ -419,6 +440,7 @@ window.addEventListener("DOMContentLoaded", () => {
   editor.addEventListener("input", () => {
     markUnsavedChanges();
     updateFocusParagraph();
+    updateWordCount();
   });
 
   editor.addEventListener("paste", (event) => {
@@ -433,6 +455,7 @@ window.addEventListener("DOMContentLoaded", () => {
     insertPlainTextAtSelection(editor, normalizedText);
     markUnsavedChanges();
     updateFocusParagraph();
+    updateWordCount();
   });
 
   editor.addEventListener("keydown", async (event) => {
@@ -525,6 +548,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   normalizeEditorStructure(editor);
   updateUnsavedIndicator();
+  updateWordCount();
 
   setFocusLevel(focusLevel);
   closeFocusMenu();

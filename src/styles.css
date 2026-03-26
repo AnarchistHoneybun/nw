@@ -52,11 +52,17 @@ body {
 
 .app-shell {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  display: block;
+  position: relative;
+  padding-top: 52px;
+  padding-bottom: 36px;
 }
 
 .app-shell.focus-mode-fullscreen .app-header {
+  display: none;
+}
+
+.app-shell.focus-mode-fullscreen .app-footer {
   display: none;
 }
 
@@ -70,6 +76,10 @@ body {
 }
 
 .app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 52px;
   background: var(--stone);
   border-bottom: 1px solid var(--header-line);
@@ -77,6 +87,44 @@ body {
   grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
   align-items: center;
   padding: 0 12px;
+  z-index: 6;
+}
+
+.header-side {
+  min-width: 120px;
+}
+
+.app-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  background: var(--stone);
+  border-top: 1px solid var(--header-line);
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
+  align-items: center;
+  padding: 0 12px;
+  z-index: 5;
+}
+
+.footer-spacer {
+  min-width: 120px;
+}
+
+.footer-stats {
+  min-width: 120px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  grid-column: 3;
+}
+
+.word-count {
+  font-size: 0.82rem;
+  color: #666;
+  user-select: none;
 }
 
 .header-side {
@@ -119,6 +167,7 @@ body {
   display: flex;
   justify-content: center;
   padding: 24px 32px;
+  width: 100%;
 }
 
 .editor-container {
@@ -130,7 +179,7 @@ body {
 .editor-surface {
   position: relative;
   width: 100%;
-  min-height: calc(100vh - 52px - 48px);
+  height: calc(100vh - 52px - 36px);
   padding: 28px 36px;
   border: 0;
   border-radius: 0;
@@ -150,12 +199,12 @@ body {
     BlinkMacSystemFont,
     sans-serif;
   font-size: 1.125rem;
-  line-height: 1.72;
-  font-weight: 420;
+  line-height: 1.8;
+  font-weight: 450;
 }
 
 .app-shell.focus-mode-fullscreen .editor-surface {
-  min-height: 100vh;
+  height: calc(100vh - 52px);
   padding-left: 44px;
   padding-right: 44px;
 }
