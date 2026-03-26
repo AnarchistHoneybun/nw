@@ -110,6 +110,84 @@ window.addEventListener("DOMContentLoaded", () => {
   let focusMenuOpen = false;
   let isComposing = false;
   let isApplyingSentenceFocus = false;
+  let caretScrollFrame = null;
+  let manualScrollLockUntil = 0;
+
+  const MANUAL_SCROLL_LOCK_MS = 450;
+
+  function ensureCaretVisibleInEditor() {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.startContainer)) {
+      return;
+    }
+
+    const editorRect = editor.getBoundingClientRect();
+    const safeMargin = Math.max(28, Math.min(96, editor.clientHeight * 0.22));
+    const upperBound = editorRect.top + safeMargin;
+    const lowerBound = editorRect.bottom - safeMargin;
+
+    const caretRange = range.cloneRange();
+    caretRange.collapse(true);
+    const caretRects = caretRange.getClientRects();
+    const caretRect =
+      caretRects.length > 0
+        ? caretRects[0]
+        : getActiveParagraph(editor)?.getBoundingClientRect();
+
+    if (!caretRect) {
+      return;
+    }
+
+    if (caretRect.top < upperBound) {
+      editor.scrollTop -= upperBound - caretRect.top;
+      return;
+    }
+
+    if (caretRect.bottom > lowerBound) {
+      editor.scrollTop += caretRect.bottom - lowerBound;
+    }
+  }
+
+  function shouldAutoFollowCaret() {
+    if (Date.now() < manualScrollLockUntil) {
+      return false;
+    }
+
+    return document.activeElement === editor;
+  }
+
+  function scheduleCaretVisibilityUpdate() {
+    if (!shouldAutoFollowCaret()) {
+      return;
+    }
+
+    if (caretScrollFrame !== null) {
+      return;
+    }
+
+    caretScrollFrame = window.requestAnimationFrame(() => {
+      caretScrollFrame = null;
+      ensureCaretVisibleInEditor();
+    });
+  }
+
+  function isCaretNavigationKey(event) {
+    return [
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+      "Home",
+      "End",
+      "PageUp",
+      "PageDown",
+    ].includes(event.key);
+  }
 
   function unwrapSentenceHighlights(paragraph) {
     if (!(paragraph instanceof HTMLElement)) {
@@ -336,7 +414,9 @@ window.addEventListener("DOMContentLoaded", () => {
     focusMenuButton.setAttribute("aria-expanded", "true");
   }
 
-  function setFocusLevel(level) {
+  function setFocusLevel(level, options = {}) {
+    const { followCaret = false } = options;
+
     const normalizedLevel =
       level === FOCUS_LEVEL_SENTENCE
         ? FOCUS_LEVEL_SENTENCE
@@ -349,15 +429,20 @@ window.addEventListener("DOMContentLoaded", () => {
       focusLevel === FOCUS_LEVEL_SENTENCE,
     );
     updateFocusControlState();
-    updateFocusParagraph();
+    updateFocusParagraph({ followCaret });
   }
 
-  function updateFocusParagraph() {
+  function updateFocusParagraph(options = {}) {
+    const { followCaret = false } = options;
+
     normalizeEditorStructure(editor);
     ensureValidCaret(editor);
 
     if (!focusModeEnabled) {
       clearSentenceHighlights();
+      if (followCaret) {
+        scheduleCaretVisibilityUpdate();
+      }
       return;
     }
 
@@ -369,6 +454,9 @@ window.addEventListener("DOMContentLoaded", () => {
         applySentenceFocusToParagraph(activeParagraph);
       } else {
         clearSentenceHighlights();
+      }
+      if (followCaret) {
+        scheduleCaretVisibilityUpdate();
       }
       return;
     }
@@ -382,6 +470,10 @@ window.addEventListener("DOMContentLoaded", () => {
     } else {
       clearSentenceHighlights();
     }
+
+    if (followCaret) {
+      scheduleCaretVisibilityUpdate();
+    }
   }
 
   function applyFocusMode(enabled) {
@@ -392,7 +484,7 @@ window.addEventListener("DOMContentLoaded", () => {
     updateFocusControlState();
 
     if (enabled) {
-      updateFocusParagraph();
+      updateFocusParagraph({ followCaret: true });
     } else {
       setActiveParagraph(editor, null);
       clearSentenceHighlights();
@@ -416,11 +508,19 @@ window.addEventListener("DOMContentLoaded", () => {
   focusLevelOptions.forEach((option) => {
     option.addEventListener("click", () => {
       const level = option.dataset.focusLevel;
-      setFocusLevel(level);
+      setFocusLevel(level, { followCaret: true });
       closeFocusMenu();
       editor.focus();
     });
   });
+
+  editor.addEventListener(
+    "wheel",
+    () => {
+      manualScrollLockUntil = Date.now() + MANUAL_SCROLL_LOCK_MS;
+    },
+    { passive: true },
+  );
 
   document.addEventListener("click", (event) => {
     if (!focusMenuOpen) {
@@ -439,7 +539,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   editor.addEventListener("input", () => {
     markUnsavedChanges();
-    updateFocusParagraph();
+    updateFocusParagraph({ followCaret: true });
     updateWordCount();
   });
 
@@ -454,7 +554,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     insertPlainTextAtSelection(editor, normalizedText);
     markUnsavedChanges();
-    updateFocusParagraph();
+    updateFocusParagraph({ followCaret: true });
     updateWordCount();
   });
 
@@ -463,7 +563,7 @@ window.addEventListener("DOMContentLoaded", () => {
       event.preventDefault();
       splitParagraphAtSelection(editor);
       markUnsavedChanges();
-      updateFocusParagraph();
+      updateFocusParagraph({ followCaret: true });
       return;
     }
 
@@ -490,7 +590,16 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     if (event.key === "Backspace" || event.key === "Delete") {
-      window.requestAnimationFrame(() => updateFocusParagraph());
+      window.requestAnimationFrame(() =>
+        updateFocusParagraph({ followCaret: true }),
+      );
+      return;
+    }
+
+    if (isCaretNavigationKey(event)) {
+      window.requestAnimationFrame(() =>
+        updateFocusParagraph({ followCaret: true }),
+      );
     }
   });
 
@@ -500,7 +609,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   editor.addEventListener("compositionend", () => {
     isComposing = false;
-    updateFocusParagraph();
+    updateFocusParagraph({ followCaret: true });
   });
 
   document.addEventListener("keydown", (event) => {
@@ -527,9 +636,15 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  editor.addEventListener("keyup", () => updateFocusParagraph());
-  editor.addEventListener("click", () => updateFocusParagraph());
-  editor.addEventListener("focus", () => updateFocusParagraph());
+  editor.addEventListener("keyup", () =>
+    updateFocusParagraph({ followCaret: false }),
+  );
+  editor.addEventListener("click", () =>
+    updateFocusParagraph({ followCaret: true }),
+  );
+  editor.addEventListener("focus", () =>
+    updateFocusParagraph({ followCaret: true }),
+  );
 
   document.addEventListener("selectionchange", () => {
     if (isApplyingSentenceFocus) {
@@ -543,7 +658,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!editor.contains(selection.anchorNode)) {
       return;
     }
-    updateFocusParagraph();
+    updateFocusParagraph({ followCaret: false });
   });
 
   normalizeEditorStructure(editor);

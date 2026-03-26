@@ -42,7 +42,8 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -51,11 +52,17 @@ body {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
   display: block;
   position: relative;
   padding-top: 52px;
   padding-bottom: 36px;
+  overflow: hidden;
+}
+
+.app-shell.focus-mode-fullscreen {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .app-shell.focus-mode-fullscreen .app-header {
@@ -204,9 +211,38 @@ body {
 }
 
 .app-shell.focus-mode-fullscreen .editor-surface {
-  height: calc(100vh - 52px);
+  height: 100vh;
   padding-left: 44px;
   padding-right: 44px;
+}
+
+.editor-surface {
+  scrollbar-width: none;
+}
+
+.editor-surface:hover,
+.editor-surface:focus-within {
+  scrollbar-width: thin;
+}
+
+.editor-surface::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.editor-surface:hover::-webkit-scrollbar,
+.editor-surface:focus-within::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.editor-surface::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+}
+
+.editor-surface::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .editor-surface:focus-visible {
