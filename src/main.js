@@ -3,9 +3,11 @@ import { normalizeEditorStructure } from "./editor/paragraphs.js";
 import {
   readFocusLevelPreference,
   readFocusModePreference,
+  readSyntaxPosPreference,
   writeFocusLevelPreference,
   writeFocusModePreference,
   readFontPreference,
+  writeSyntaxPosPreference,
   writeFontPreference,
 } from "./editor/preferences.js";
 import {
@@ -21,6 +23,7 @@ let hasUnsavedChanges = false;
 
 const FOCUS_LEVEL_PARAGRAPH = "paragraph";
 const FOCUS_LEVEL_SENTENCE = "sentence";
+const SYNTAX_POS_ORDER = ["noun", "verb", "adjective", "adverb", "conjunction"];
 
 function updateUnsavedIndicator() {
   const fileNameElement = document.querySelector("#file-name");
@@ -85,8 +88,6 @@ const fileOperations = createFileOperations({
 
 // Initialize editor when DOM is ready (defer ensures this runs after DOM parsing)
 (function initialize() {
-  console.log("Initializing app...");
-
   const editor = document.querySelector("#editor");
   const editorContainer = document.querySelector(".editor-container");
   const focusToggleButton = document.querySelector("#focus-toggle-button");
@@ -98,17 +99,6 @@ const fileOperations = createFileOperations({
   const focusControl = document.querySelector("#focus-control");
   const appShell = document.querySelector(".app-shell");
 
-  console.log("DOM elements found:", {
-    editor: !!editor,
-    editorContainer: !!editorContainer,
-    focusToggleButton: !!focusToggleButton,
-    focusMenuButton: !!focusMenuButton,
-    focusLevelMenu: !!focusLevelMenu,
-    focusLevelOptions: focusLevelOptions.length,
-    focusControl: !!focusControl,
-    appShell: !!appShell,
-  });
-
   if (
     !editor ||
     !editorContainer ||
@@ -118,7 +108,6 @@ const fileOperations = createFileOperations({
     !focusControl ||
     !appShell
   ) {
-    console.error("Missing required DOM elements! App initialization failed.");
     return;
   }
 
@@ -129,6 +118,11 @@ const fileOperations = createFileOperations({
   let isApplyingSentenceFocus = false;
   let caretScrollFrame = null;
   let manualScrollLockUntil = 0;
+  let syntaxRefreshToken = 0;
+  let syntaxPosSettings = readSyntaxPosPreference();
+
+  const syntaxParseCache = new Map();
+  const nlpEngine = globalThis.nlp;
 
   const MANUAL_SCROLL_LOCK_MS = 450;
 
@@ -313,6 +307,230 @@ const fileOperations = createFileOperations({
     selection.addRange(nextRange);
   }
 
+  function getSyntaxSettingsKey() {
+    return SYNTAX_POS_ORDER.map(
+      (key) => `${key}:${syntaxPosSettings[key] ? 1 : 0}`,
+    ).join("|");
+  }
+
+  function clearSyntaxCache() {
+    syntaxParseCache.clear();
+  }
+
+  function classifyPosTag(tags) {
+    if (tags.includes("Adjective")) {
+      return "adjective";
+    }
+    if (tags.includes("Adverb")) {
+      return "adverb";
+    }
+    if (tags.includes("Conjunction")) {
+      return "conjunction";
+    }
+    if (tags.includes("Verb")) {
+      return "verb";
+    }
+    if (tags.includes("Noun")) {
+      return "noun";
+    }
+    return null;
+  }
+
+  function getSyntaxRangesForText(text) {
+    if (!text) {
+      return [];
+    }
+
+    if (typeof nlpEngine !== "function") {
+      return [];
+    }
+
+    const settingsKey = getSyntaxSettingsKey();
+    const cacheKey = `${settingsKey}::${text}`;
+    if (syntaxParseCache.has(cacheKey)) {
+      return syntaxParseCache.get(cacheKey);
+    }
+
+    const terms = nlpEngine(text).terms().json();
+    const ranges = [];
+    let cursor = 0;
+
+    terms.forEach((item) => {
+      const term = item?.terms?.[0];
+      const tokenText = term?.text;
+      if (!tokenText) {
+        return;
+      }
+
+      const tags = Array.isArray(term.tags) ? term.tags : [];
+      const posClass = classifyPosTag(tags);
+      const start = text.indexOf(tokenText, cursor);
+      if (start < 0) {
+        return;
+      }
+
+      const end = start + tokenText.length;
+      cursor = end + (term.post?.length ?? 0);
+
+      if (!posClass || !syntaxPosSettings[posClass]) {
+        return;
+      }
+
+      ranges.push({ start, end, posClass });
+    });
+
+    if (syntaxParseCache.size > 4000) {
+      syntaxParseCache.clear();
+    }
+
+    syntaxParseCache.set(cacheKey, ranges);
+    return ranges;
+  }
+
+  function buildSyntaxFragment(text, ranges) {
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+
+    ranges.forEach((range) => {
+      if (range.start > cursor) {
+        fragment.appendChild(
+          document.createTextNode(text.slice(cursor, range.start)),
+        );
+      }
+
+      const span = document.createElement("span");
+      span.classList.add("syntax-token", `syntax-${range.posClass}`);
+      span.textContent = text.slice(range.start, range.end);
+      fragment.appendChild(span);
+
+      cursor = range.end;
+    });
+
+    if (cursor < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+
+    return fragment;
+  }
+
+  function clearSyntaxHighlightsInElement(element) {
+    if (!(element instanceof HTMLElement)) {
+      return;
+    }
+
+    const highlightedTokens = Array.from(
+      element.querySelectorAll(".syntax-token"),
+    );
+    highlightedTokens.forEach((token) => {
+      token.replaceWith(document.createTextNode(token.textContent || ""));
+    });
+
+    element.normalize();
+  }
+
+  function clearSyntaxHighlights(exceptParagraph = null) {
+    const paragraphs = Array.from(
+      editor.querySelectorAll(":scope > .editor-paragraph"),
+    );
+
+    paragraphs.forEach((paragraph) => {
+      if (exceptParagraph && paragraph === exceptParagraph) {
+        return;
+      }
+
+      clearSyntaxHighlightsInElement(paragraph);
+    });
+  }
+
+  function getSyntaxContainers(paragraph) {
+    if (!(paragraph instanceof HTMLElement)) {
+      return [];
+    }
+
+    if (focusModeEnabled && focusLevel === FOCUS_LEVEL_SENTENCE) {
+      const segments = Array.from(
+        paragraph.querySelectorAll(":scope > .focus-sentence-segment"),
+      );
+      if (segments.length > 0) {
+        return segments;
+      }
+    }
+
+    return [paragraph];
+  }
+
+  function applySyntaxHighlightsToParagraph(paragraph, options = {}) {
+    const { preserveSelection = false } = options;
+
+    if (!(paragraph instanceof HTMLElement)) {
+      return;
+    }
+
+    const selectionOffsets = preserveSelection
+      ? saveSelectionOffsetsForParagraph(paragraph)
+      : null;
+
+    const containers = getSyntaxContainers(paragraph);
+    containers.forEach((container) => {
+      clearSyntaxHighlightsInElement(container);
+
+      const text = container.textContent || "";
+      if (!text.trim()) {
+        return;
+      }
+
+      const ranges = getSyntaxRangesForText(text);
+      if (ranges.length === 0) {
+        return;
+      }
+
+      container.textContent = "";
+      container.appendChild(buildSyntaxFragment(text, ranges));
+    });
+
+    if (preserveSelection && selectionOffsets) {
+      restoreSelectionOffsetsForParagraph(paragraph, selectionOffsets);
+    }
+  }
+
+  function scheduleSyntaxHighlightForAllParagraphs() {
+    if (!focusModeEnabled) {
+      return;
+    }
+
+    syntaxRefreshToken += 1;
+    const currentToken = syntaxRefreshToken;
+    const paragraphs = Array.from(
+      editor.querySelectorAll(":scope > .editor-paragraph"),
+    );
+    const activeParagraph = getActiveParagraph(editor);
+
+    let index = 0;
+    const processChunk = () => {
+      if (!focusModeEnabled || currentToken !== syntaxRefreshToken) {
+        return;
+      }
+
+      const chunkStart = performance.now();
+      while (index < paragraphs.length && performance.now() - chunkStart < 8) {
+        const paragraph = paragraphs[index];
+        index += 1;
+        if (paragraph === activeParagraph) {
+          continue;
+        }
+        applySyntaxHighlightsToParagraph(paragraph, {
+          preserveSelection: false,
+        });
+      }
+
+      if (index < paragraphs.length) {
+        window.requestAnimationFrame(processChunk);
+      }
+    };
+
+    window.requestAnimationFrame(processChunk);
+  }
+
   function findSentenceBounds(text, caretOffset) {
     if (!text) {
       return { start: 0, end: 0 };
@@ -457,6 +675,7 @@ const fileOperations = createFileOperations({
 
     if (!focusModeEnabled) {
       clearSentenceHighlights();
+      clearSyntaxHighlights();
       if (followCaret) {
         scheduleCaretVisibilityUpdate();
       }
@@ -472,6 +691,11 @@ const fileOperations = createFileOperations({
       } else {
         clearSentenceHighlights();
       }
+
+      applySyntaxHighlightsToParagraph(activeParagraph, {
+        preserveSelection: true,
+      });
+
       if (followCaret) {
         scheduleCaretVisibilityUpdate();
       }
@@ -488,6 +712,12 @@ const fileOperations = createFileOperations({
       clearSentenceHighlights();
     }
 
+    if (firstParagraph) {
+      applySyntaxHighlightsToParagraph(firstParagraph, {
+        preserveSelection: true,
+      });
+    }
+
     if (followCaret) {
       scheduleCaretVisibilityUpdate();
     }
@@ -502,9 +732,11 @@ const fileOperations = createFileOperations({
 
     if (enabled) {
       updateFocusParagraph({ followCaret: true });
+      scheduleSyntaxHighlightForAllParagraphs();
     } else {
       setActiveParagraph(editor, null);
       clearSentenceHighlights();
+      clearSyntaxHighlights();
       closeFocusMenu();
     }
   }
@@ -683,30 +915,23 @@ const fileOperations = createFileOperations({
   const menuScreen = document.querySelector("#menu-screen");
   const menuCloseButton = document.querySelector("#menu-close-button");
   const fontOptions = Array.from(document.querySelectorAll(".font-option"));
+  const syntaxPosOptions = Array.from(
+    document.querySelectorAll(".syntax-pos-option"),
+  );
   const menuIconTabs = Array.from(document.querySelectorAll(".menu-icon-tab"));
   const menuSections = Array.from(document.querySelectorAll(".menu-section"));
-
-  console.log("Menu elements found:", {
-    menuButton: !!menuButton,
-    menuScreen: !!menuScreen,
-    menuCloseButton: !!menuCloseButton,
-    fontOptions: fontOptions.length,
-    menuIconTabs: menuIconTabs.length,
-    menuSections: menuSections.length,
-  });
 
   if (
     menuButton &&
     menuScreen &&
     menuCloseButton &&
     fontOptions.length > 0 &&
+    syntaxPosOptions.length > 0 &&
     menuIconTabs.length > 0 &&
     menuSections.length > 0
   ) {
-    console.log("Setting up menu event listeners...");
     let menuOpen = false;
     let currentFont = readFontPreference();
-    let currentTab = "typography";
 
     function applyFont(font) {
       currentFont = font;
@@ -725,16 +950,21 @@ const fileOperations = createFileOperations({
       });
     }
 
-    function switchMenuTab(tabName) {
-      currentTab = tabName;
+    function updateSyntaxOptionsUI() {
+      syntaxPosOptions.forEach((button) => {
+        const pos = button.dataset.pos;
+        const isEnabled = Boolean(pos && syntaxPosSettings[pos]);
+        button.classList.toggle("is-enabled", isEnabled);
+        button.setAttribute("aria-pressed", String(isEnabled));
+      });
+    }
 
-      // Update tab buttons
+    function switchMenuTab(tabName) {
       menuIconTabs.forEach((tab) => {
         const isActive = tab.dataset.tab === tabName;
         tab.classList.toggle("active", isActive);
       });
 
-      // Update sections
       menuSections.forEach((section) => {
         const isActive = section.dataset.tab === tabName;
         section.classList.toggle("active", isActive);
@@ -742,15 +972,12 @@ const fileOperations = createFileOperations({
     }
 
     function openMenu() {
-      console.log("Opening menu...");
       menuOpen = true;
       menuScreen.hidden = false;
       menuButton.setAttribute("aria-expanded", "true");
-      console.log("Menu opened, menuScreen.hidden:", menuScreen.hidden);
     }
 
     function closeMenu() {
-      console.log("Closing menu...");
       menuOpen = false;
       menuScreen.hidden = true;
       menuButton.setAttribute("aria-expanded", "false");
@@ -758,7 +985,6 @@ const fileOperations = createFileOperations({
     }
 
     menuButton.addEventListener("click", () => {
-      console.log("Menu button clicked! menuOpen:", menuOpen);
       if (menuOpen) {
         closeMenu();
       } else {
@@ -788,6 +1014,32 @@ const fileOperations = createFileOperations({
       });
     });
 
+    syntaxPosOptions.forEach((button) => {
+      button.addEventListener("click", () => {
+        const pos = button.dataset.pos;
+        if (
+          !pos ||
+          !Object.prototype.hasOwnProperty.call(syntaxPosSettings, pos)
+        ) {
+          return;
+        }
+
+        syntaxPosSettings = {
+          ...syntaxPosSettings,
+          [pos]: !syntaxPosSettings[pos],
+        };
+
+        writeSyntaxPosPreference(syntaxPosSettings);
+        updateSyntaxOptionsUI();
+        clearSyntaxCache();
+
+        if (focusModeEnabled) {
+          updateFocusParagraph({ followCaret: false });
+          scheduleSyntaxHighlightForAllParagraphs();
+        }
+      });
+    });
+
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && menuOpen) {
         closeMenu();
@@ -796,6 +1048,7 @@ const fileOperations = createFileOperations({
 
     // Initialize menu state
     switchMenuTab("typography");
+    updateSyntaxOptionsUI();
     applyFont(currentFont);
     closeMenu();
   }
@@ -809,6 +1062,4 @@ const fileOperations = createFileOperations({
 
   applyFocusMode(focusModeEnabled);
   editor.focus();
-
-  console.log("App initialization complete!");
 })();

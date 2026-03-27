@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="/assets/vendor/compromise.js"></script>
     <title>nw Editor</title>
     <script type="module" src="/main.js" defer></script>
   </head>
@@ -107,6 +108,14 @@
           >
             🔤
           </button>
+          <button
+            class="menu-icon-tab"
+            data-tab="syntax"
+            aria-label="Syntax highlight settings"
+            title="Syntax Highlight"
+          >
+            ✦
+          </button>
         </div>
 
         <div class="menu-divider"></div>
@@ -129,6 +138,59 @@
                   type="button"
                 >
                   IBM Plex Serif
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="menu-section" data-tab="syntax">
+            <div class="menu-setting">
+              <label class="menu-label">Syntax Highlight</label>
+              <p class="menu-help-text">
+                Syntax highlighting is tied to Focus Mode for now.
+              </p>
+              <div class="syntax-options">
+                <button
+                  class="syntax-pos-option is-enabled"
+                  data-pos="noun"
+                  type="button"
+                >
+                  <span class="syntax-color-dot syntax-color-noun"></span>
+                  Nouns
+                </button>
+                <button
+                  class="syntax-pos-option is-enabled"
+                  data-pos="verb"
+                  type="button"
+                >
+                  <span class="syntax-color-dot syntax-color-verb"></span>
+                  Verbs
+                </button>
+                <button
+                  class="syntax-pos-option is-enabled"
+                  data-pos="adjective"
+                  type="button"
+                >
+                  <span class="syntax-color-dot syntax-color-adjective"></span>
+                  Adjectives
+                </button>
+                <button
+                  class="syntax-pos-option is-enabled"
+                  data-pos="adverb"
+                  type="button"
+                >
+                  <span class="syntax-color-dot syntax-color-adverb"></span>
+                  Adverbs
+                </button>
+                <button
+                  class="syntax-pos-option is-enabled"
+                  data-pos="conjunction"
+                  type="button"
+                >
+                  <span
+                    class="syntax-color-dot syntax-color-conjunction"
+                  ></span>
+                  Conjunctions
                 </button>
               </div>
             </div>

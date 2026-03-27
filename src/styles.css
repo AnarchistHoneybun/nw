@@ -285,6 +285,26 @@ body {
   color: var(--black);
 }
 
+.syntax-token.syntax-adjective {
+  color: #8b5e34;
+}
+
+.syntax-token.syntax-noun {
+  color: #a14545;
+}
+
+.syntax-token.syntax-adverb {
+  color: #7353a6;
+}
+
+.syntax-token.syntax-verb {
+  color: #3a6da8;
+}
+
+.syntax-token.syntax-conjunction {
+  color: #4f7f4f;
+}
+
 .focus-control {
   position: relative;
   display: inline-flex;
@@ -544,6 +564,12 @@ body {
   letter-spacing: 0.5px;
 }
 
+.menu-help-text {
+  margin: 0 0 10px;
+  font-size: 0.84rem;
+  color: #666;
+}
+
 .font-select {
   width: 100%;
   padding: 12px;
@@ -596,4 +622,68 @@ body {
   background: var(--coral);
   color: white;
   border-color: var(--coral);
+}
+
+.syntax-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.syntax-pos-option {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--header-line);
+  border-radius: 6px;
+  background: white;
+  color: #333;
+  font-family: "InterVariable", "Inter", sans-serif;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 120ms ease;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.syntax-pos-option:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.syntax-pos-option:focus-visible {
+  outline: none;
+  border-color: var(--coral);
+}
+
+.syntax-pos-option.is-enabled {
+  border-color: #c8ccd0;
+}
+
+.syntax-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.syntax-color-noun {
+  background: #a14545;
+}
+
+.syntax-color-verb {
+  background: #3a6da8;
+}
+
+.syntax-color-adjective {
+  background: #8b5e34;
+}
+
+.syntax-color-adverb {
+  background: #7353a6;
+}
+
+.syntax-color-conjunction {
+  background: #4f7f4f;
 }
