@@ -305,6 +305,21 @@ body {
   color: #4f7f4f;
 }
 
+.editor-container.focus-mode
+  .editor-surface
+  > .editor-paragraph:not(.is-active-paragraph)
+  .syntax-token {
+  color: inherit;
+}
+
+.editor-container.focus-mode.focus-level-sentence
+  .editor-surface
+  > .editor-paragraph.is-active-paragraph
+  .focus-sentence-segment:not(.is-active-sentence)
+  .syntax-token {
+  color: inherit;
+}
+
 .focus-control {
   position: relative;
   display: inline-flex;

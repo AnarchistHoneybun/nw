@@ -17,13 +17,13 @@ import {
   splitParagraphAtSelection,
   setActiveParagraph,
 } from "./editor/selection.js";
+import { createSyntaxHighlighter } from "./editor/syntaxHighlighting.js";
 
 let currentFilePath = null;
 let hasUnsavedChanges = false;
 
 const FOCUS_LEVEL_PARAGRAPH = "paragraph";
 const FOCUS_LEVEL_SENTENCE = "sentence";
-const SYNTAX_POS_ORDER = ["noun", "verb", "adjective", "adverb", "conjunction"];
 
 function updateUnsavedIndicator() {
   const fileNameElement = document.querySelector("#file-name");
@@ -118,10 +118,11 @@ const fileOperations = createFileOperations({
   let isApplyingSentenceFocus = false;
   let caretScrollFrame = null;
   let manualScrollLockUntil = 0;
-  let syntaxRefreshToken = 0;
   let syntaxPosSettings = readSyntaxPosPreference();
+  let previousActiveParagraph = null;
+  let focusUpdateRaf = null;
+  let pendingFollowCaret = false;
 
-  const syntaxParseCache = new Map();
   const nlpEngine = globalThis.nlp;
 
   const MANUAL_SCROLL_LOCK_MS = 450;
@@ -307,141 +308,6 @@ const fileOperations = createFileOperations({
     selection.addRange(nextRange);
   }
 
-  function getSyntaxSettingsKey() {
-    return SYNTAX_POS_ORDER.map(
-      (key) => `${key}:${syntaxPosSettings[key] ? 1 : 0}`,
-    ).join("|");
-  }
-
-  function clearSyntaxCache() {
-    syntaxParseCache.clear();
-  }
-
-  function classifyPosTag(tags) {
-    if (tags.includes("Adjective")) {
-      return "adjective";
-    }
-    if (tags.includes("Adverb")) {
-      return "adverb";
-    }
-    if (tags.includes("Conjunction")) {
-      return "conjunction";
-    }
-    if (tags.includes("Verb")) {
-      return "verb";
-    }
-    if (tags.includes("Noun")) {
-      return "noun";
-    }
-    return null;
-  }
-
-  function getSyntaxRangesForText(text) {
-    if (!text) {
-      return [];
-    }
-
-    if (typeof nlpEngine !== "function") {
-      return [];
-    }
-
-    const settingsKey = getSyntaxSettingsKey();
-    const cacheKey = `${settingsKey}::${text}`;
-    if (syntaxParseCache.has(cacheKey)) {
-      return syntaxParseCache.get(cacheKey);
-    }
-
-    const terms = nlpEngine(text).terms().json();
-    const ranges = [];
-    let cursor = 0;
-
-    terms.forEach((item) => {
-      const term = item?.terms?.[0];
-      const tokenText = term?.text;
-      if (!tokenText) {
-        return;
-      }
-
-      const tags = Array.isArray(term.tags) ? term.tags : [];
-      const posClass = classifyPosTag(tags);
-      const start = text.indexOf(tokenText, cursor);
-      if (start < 0) {
-        return;
-      }
-
-      const end = start + tokenText.length;
-      cursor = end + (term.post?.length ?? 0);
-
-      if (!posClass || !syntaxPosSettings[posClass]) {
-        return;
-      }
-
-      ranges.push({ start, end, posClass });
-    });
-
-    if (syntaxParseCache.size > 4000) {
-      syntaxParseCache.clear();
-    }
-
-    syntaxParseCache.set(cacheKey, ranges);
-    return ranges;
-  }
-
-  function buildSyntaxFragment(text, ranges) {
-    const fragment = document.createDocumentFragment();
-    let cursor = 0;
-
-    ranges.forEach((range) => {
-      if (range.start > cursor) {
-        fragment.appendChild(
-          document.createTextNode(text.slice(cursor, range.start)),
-        );
-      }
-
-      const span = document.createElement("span");
-      span.classList.add("syntax-token", `syntax-${range.posClass}`);
-      span.textContent = text.slice(range.start, range.end);
-      fragment.appendChild(span);
-
-      cursor = range.end;
-    });
-
-    if (cursor < text.length) {
-      fragment.appendChild(document.createTextNode(text.slice(cursor)));
-    }
-
-    return fragment;
-  }
-
-  function clearSyntaxHighlightsInElement(element) {
-    if (!(element instanceof HTMLElement)) {
-      return;
-    }
-
-    const highlightedTokens = Array.from(
-      element.querySelectorAll(".syntax-token"),
-    );
-    highlightedTokens.forEach((token) => {
-      token.replaceWith(document.createTextNode(token.textContent || ""));
-    });
-
-    element.normalize();
-  }
-
-  function clearSyntaxHighlights(exceptParagraph = null) {
-    const paragraphs = Array.from(
-      editor.querySelectorAll(":scope > .editor-paragraph"),
-    );
-
-    paragraphs.forEach((paragraph) => {
-      if (exceptParagraph && paragraph === exceptParagraph) {
-        return;
-      }
-
-      clearSyntaxHighlightsInElement(paragraph);
-    });
-  }
-
   function getSyntaxContainers(paragraph) {
     if (!(paragraph instanceof HTMLElement)) {
       return [];
@@ -459,38 +325,19 @@ const fileOperations = createFileOperations({
     return [paragraph];
   }
 
+  const syntaxHighlighter = createSyntaxHighlighter({
+    editor,
+    nlpEngine,
+    initialSyntaxPosSettings: syntaxPosSettings,
+    getContainersForParagraph: getSyntaxContainers,
+  });
+
+  function clearSyntaxHighlights(exceptParagraph = null) {
+    syntaxHighlighter.clearAll(exceptParagraph);
+  }
+
   function applySyntaxHighlightsToParagraph(paragraph, options = {}) {
-    const { preserveSelection = false } = options;
-
-    if (!(paragraph instanceof HTMLElement)) {
-      return;
-    }
-
-    const selectionOffsets = preserveSelection
-      ? saveSelectionOffsetsForParagraph(paragraph)
-      : null;
-
-    const containers = getSyntaxContainers(paragraph);
-    containers.forEach((container) => {
-      clearSyntaxHighlightsInElement(container);
-
-      const text = container.textContent || "";
-      if (!text.trim()) {
-        return;
-      }
-
-      const ranges = getSyntaxRangesForText(text);
-      if (ranges.length === 0) {
-        return;
-      }
-
-      container.textContent = "";
-      container.appendChild(buildSyntaxFragment(text, ranges));
-    });
-
-    if (preserveSelection && selectionOffsets) {
-      restoreSelectionOffsetsForParagraph(paragraph, selectionOffsets);
-    }
+    syntaxHighlighter.applyParagraph(paragraph, options);
   }
 
   function scheduleSyntaxHighlightForAllParagraphs() {
@@ -498,37 +345,30 @@ const fileOperations = createFileOperations({
       return;
     }
 
-    syntaxRefreshToken += 1;
-    const currentToken = syntaxRefreshToken;
     const paragraphs = Array.from(
       editor.querySelectorAll(":scope > .editor-paragraph"),
     );
     const activeParagraph = getActiveParagraph(editor);
 
-    let index = 0;
-    const processChunk = () => {
-      if (!focusModeEnabled || currentToken !== syntaxRefreshToken) {
-        return;
-      }
+    syntaxHighlighter.scheduleBackgroundRefresh(paragraphs, {
+      excludeParagraph: activeParagraph,
+    });
+  }
 
-      const chunkStart = performance.now();
-      while (index < paragraphs.length && performance.now() - chunkStart < 8) {
-        const paragraph = paragraphs[index];
-        index += 1;
-        if (paragraph === activeParagraph) {
-          continue;
-        }
-        applySyntaxHighlightsToParagraph(paragraph, {
-          preserveSelection: false,
-        });
-      }
+  function scheduleFocusUpdate(options = {}) {
+    const { followCaret = false } = options;
+    pendingFollowCaret = pendingFollowCaret || followCaret;
 
-      if (index < paragraphs.length) {
-        window.requestAnimationFrame(processChunk);
-      }
-    };
+    if (focusUpdateRaf !== null) {
+      return;
+    }
 
-    window.requestAnimationFrame(processChunk);
+    focusUpdateRaf = window.requestAnimationFrame(() => {
+      focusUpdateRaf = null;
+      const shouldFollow = pendingFollowCaret;
+      pendingFollowCaret = false;
+      updateFocusParagraph({ followCaret: shouldFollow });
+    });
   }
 
   function findSentenceBounds(text, caretOffset) {
@@ -664,7 +504,7 @@ const fileOperations = createFileOperations({
       focusLevel === FOCUS_LEVEL_SENTENCE,
     );
     updateFocusControlState();
-    updateFocusParagraph({ followCaret });
+    scheduleFocusUpdate({ followCaret });
   }
 
   function updateFocusParagraph(options = {}) {
@@ -676,47 +516,59 @@ const fileOperations = createFileOperations({
     if (!focusModeEnabled) {
       clearSentenceHighlights();
       clearSyntaxHighlights();
+      previousActiveParagraph = null;
       if (followCaret) {
         scheduleCaretVisibilityUpdate();
       }
       return;
     }
 
-    const activeParagraph = getActiveParagraph(editor);
-    if (activeParagraph) {
-      setActiveParagraph(editor, activeParagraph);
-      if (focusLevel === FOCUS_LEVEL_SENTENCE && !isComposing) {
-        clearSentenceHighlights(activeParagraph);
-        applySentenceFocusToParagraph(activeParagraph);
-      } else {
-        clearSentenceHighlights();
-      }
+    const detectedParagraph = getActiveParagraph(editor);
+    const fallbackParagraph = editor.querySelector(
+      ":scope > .editor-paragraph",
+    );
+    const nextActiveParagraph = detectedParagraph || fallbackParagraph || null;
 
-      applySyntaxHighlightsToParagraph(activeParagraph, {
-        preserveSelection: true,
-      });
+    setActiveParagraph(editor, nextActiveParagraph);
 
-      if (followCaret) {
-        scheduleCaretVisibilityUpdate();
-      }
-      return;
+    if (
+      previousActiveParagraph &&
+      previousActiveParagraph !== nextActiveParagraph
+    ) {
+      unwrapSentenceHighlights(previousActiveParagraph);
+      syntaxHighlighter.queueParagraph(previousActiveParagraph);
     }
 
-    const firstParagraph = editor.querySelector(":scope > .editor-paragraph");
-    setActiveParagraph(editor, firstParagraph);
-
-    if (firstParagraph && focusLevel === FOCUS_LEVEL_SENTENCE && !isComposing) {
-      clearSentenceHighlights(firstParagraph);
-      applySentenceFocusToParagraph(firstParagraph);
-    } else {
+    if (!nextActiveParagraph) {
       clearSentenceHighlights();
+      clearSyntaxHighlights();
+      previousActiveParagraph = null;
+      if (followCaret) {
+        scheduleCaretVisibilityUpdate();
+      }
+      return;
     }
 
-    if (firstParagraph) {
-      applySyntaxHighlightsToParagraph(firstParagraph, {
-        preserveSelection: true,
-      });
+    if (focusLevel === FOCUS_LEVEL_SENTENCE && !isComposing) {
+      if (previousActiveParagraph !== nextActiveParagraph) {
+        clearSentenceHighlights(nextActiveParagraph);
+      }
+      applySentenceFocusToParagraph(nextActiveParagraph);
+    } else {
+      unwrapSentenceHighlights(nextActiveParagraph);
+      if (
+        previousActiveParagraph &&
+        previousActiveParagraph !== nextActiveParagraph
+      ) {
+        unwrapSentenceHighlights(previousActiveParagraph);
+      }
     }
+
+    applySyntaxHighlightsToParagraph(nextActiveParagraph, {
+      preserveSelection: true,
+    });
+
+    previousActiveParagraph = nextActiveParagraph;
 
     if (followCaret) {
       scheduleCaretVisibilityUpdate();
@@ -735,6 +587,7 @@ const fileOperations = createFileOperations({
       scheduleSyntaxHighlightForAllParagraphs();
     } else {
       setActiveParagraph(editor, null);
+      previousActiveParagraph = null;
       clearSentenceHighlights();
       clearSyntaxHighlights();
       closeFocusMenu();
@@ -788,7 +641,7 @@ const fileOperations = createFileOperations({
 
   editor.addEventListener("input", () => {
     markUnsavedChanges();
-    updateFocusParagraph({ followCaret: true });
+    scheduleFocusUpdate({ followCaret: true });
     updateWordCount();
   });
 
@@ -803,7 +656,7 @@ const fileOperations = createFileOperations({
 
     insertPlainTextAtSelection(editor, normalizedText);
     markUnsavedChanges();
-    updateFocusParagraph({ followCaret: true });
+    scheduleFocusUpdate({ followCaret: true });
     updateWordCount();
   });
 
@@ -812,7 +665,7 @@ const fileOperations = createFileOperations({
       event.preventDefault();
       splitParagraphAtSelection(editor);
       markUnsavedChanges();
-      updateFocusParagraph({ followCaret: true });
+      scheduleFocusUpdate({ followCaret: true });
       return;
     }
 
@@ -839,16 +692,12 @@ const fileOperations = createFileOperations({
     }
 
     if (event.key === "Backspace" || event.key === "Delete") {
-      window.requestAnimationFrame(() =>
-        updateFocusParagraph({ followCaret: true }),
-      );
+      scheduleFocusUpdate({ followCaret: true });
       return;
     }
 
     if (isCaretNavigationKey(event)) {
-      window.requestAnimationFrame(() =>
-        updateFocusParagraph({ followCaret: true }),
-      );
+      scheduleFocusUpdate({ followCaret: true });
     }
   });
 
@@ -858,7 +707,7 @@ const fileOperations = createFileOperations({
 
   editor.addEventListener("compositionend", () => {
     isComposing = false;
-    updateFocusParagraph({ followCaret: true });
+    scheduleFocusUpdate({ followCaret: true });
   });
 
   document.addEventListener("keydown", (event) => {
@@ -886,13 +735,13 @@ const fileOperations = createFileOperations({
   });
 
   editor.addEventListener("keyup", () =>
-    updateFocusParagraph({ followCaret: false }),
+    scheduleFocusUpdate({ followCaret: false }),
   );
   editor.addEventListener("click", () =>
-    updateFocusParagraph({ followCaret: true }),
+    scheduleFocusUpdate({ followCaret: true }),
   );
   editor.addEventListener("focus", () =>
-    updateFocusParagraph({ followCaret: true }),
+    scheduleFocusUpdate({ followCaret: true }),
   );
 
   document.addEventListener("selectionchange", () => {
@@ -907,7 +756,7 @@ const fileOperations = createFileOperations({
     if (!editor.contains(selection.anchorNode)) {
       return;
     }
-    updateFocusParagraph({ followCaret: false });
+    scheduleFocusUpdate({ followCaret: false });
   });
 
   // Menu handling
@@ -1031,10 +880,10 @@ const fileOperations = createFileOperations({
 
         writeSyntaxPosPreference(syntaxPosSettings);
         updateSyntaxOptionsUI();
-        clearSyntaxCache();
+        syntaxHighlighter.setSettings(syntaxPosSettings);
 
         if (focusModeEnabled) {
-          updateFocusParagraph({ followCaret: false });
+          scheduleFocusUpdate({ followCaret: false });
           scheduleSyntaxHighlightForAllParagraphs();
         }
       });
