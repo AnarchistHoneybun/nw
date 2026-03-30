@@ -2,15 +2,9 @@
 
 A minimal writing app, with focus mode to minimize distractions.
 
-## ⚠️ Syntax Highlight (Experimental / Unstable)
+## Syntax Highlight
 
-The current Parts-of-Speech (PoS) syntax highlight implementation is unstable and not ready for regular use yet.
-
-Known issues right now:
-
-- Significant typing/editing lag after short input sessions
-- Pasting larger text chunks can introduce heavy UI slowdown
-- Focus/syntax cleanup can become inconsistent when moving the caret between paragraphs
+Parts-of-Speech (PoS) syntax highlighting in the editor.
 
 ![Current PoS Highlight State](screenshots/PoS_highlight.png)
 
