@@ -2,6 +2,12 @@
 
 A minimal writing app, with focus mode to minimize distractions.
 
+## Syntax Highlight
+
+Parts-of-Speech (PoS) syntax highlighting in the editor.
+
+![Current PoS Highlight State](screenshots/PoS_highlight.png)
+
 ## Focus Mode
 
 <table>

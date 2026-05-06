@@ -3,9 +3,11 @@ import { normalizeEditorStructure } from "./editor/paragraphs.js";
 import {
   readFocusLevelPreference,
   readFocusModePreference,
+  readSyntaxPosPreference,
   writeFocusLevelPreference,
   writeFocusModePreference,
   readFontPreference,
+  writeSyntaxPosPreference,
   writeFontPreference,
 } from "./editor/preferences.js";
 import {
@@ -15,6 +17,7 @@ import {
   splitParagraphAtSelection,
   setActiveParagraph,
 } from "./editor/selection.js";
+import { createSyntaxHighlighter } from "./editor/syntaxHighlighting.js";
 
 let currentFilePath = null;
 let hasUnsavedChanges = false;
@@ -85,8 +88,6 @@ const fileOperations = createFileOperations({
 
 // Initialize editor when DOM is ready (defer ensures this runs after DOM parsing)
 (function initialize() {
-  console.log("Initializing app...");
-
   const editor = document.querySelector("#editor");
   const editorContainer = document.querySelector(".editor-container");
   const focusToggleButton = document.querySelector("#focus-toggle-button");
@@ -98,17 +99,6 @@ const fileOperations = createFileOperations({
   const focusControl = document.querySelector("#focus-control");
   const appShell = document.querySelector(".app-shell");
 
-  console.log("DOM elements found:", {
-    editor: !!editor,
-    editorContainer: !!editorContainer,
-    focusToggleButton: !!focusToggleButton,
-    focusMenuButton: !!focusMenuButton,
-    focusLevelMenu: !!focusLevelMenu,
-    focusLevelOptions: focusLevelOptions.length,
-    focusControl: !!focusControl,
-    appShell: !!appShell,
-  });
-
   if (
     !editor ||
     !editorContainer ||
@@ -118,7 +108,6 @@ const fileOperations = createFileOperations({
     !focusControl ||
     !appShell
   ) {
-    console.error("Missing required DOM elements! App initialization failed.");
     return;
   }
 
@@ -129,6 +118,12 @@ const fileOperations = createFileOperations({
   let isApplyingSentenceFocus = false;
   let caretScrollFrame = null;
   let manualScrollLockUntil = 0;
+  let syntaxPosSettings = readSyntaxPosPreference();
+  let previousActiveParagraph = null;
+  let focusUpdateRaf = null;
+  let pendingFollowCaret = false;
+
+  const nlpEngine = globalThis.nlp;
 
   const MANUAL_SCROLL_LOCK_MS = 450;
 
@@ -313,6 +308,69 @@ const fileOperations = createFileOperations({
     selection.addRange(nextRange);
   }
 
+  function getSyntaxContainers(paragraph) {
+    if (!(paragraph instanceof HTMLElement)) {
+      return [];
+    }
+
+    if (focusModeEnabled && focusLevel === FOCUS_LEVEL_SENTENCE) {
+      const segments = Array.from(
+        paragraph.querySelectorAll(":scope > .focus-sentence-segment"),
+      );
+      if (segments.length > 0) {
+        return segments;
+      }
+    }
+
+    return [paragraph];
+  }
+
+  const syntaxHighlighter = createSyntaxHighlighter({
+    editor,
+    nlpEngine,
+    initialSyntaxPosSettings: syntaxPosSettings,
+    getContainersForParagraph: getSyntaxContainers,
+  });
+
+  function clearSyntaxHighlights(exceptParagraph = null) {
+    syntaxHighlighter.clearAll(exceptParagraph);
+  }
+
+  function applySyntaxHighlightsToParagraph(paragraph, options = {}) {
+    syntaxHighlighter.applyParagraph(paragraph, options);
+  }
+
+  function scheduleSyntaxHighlightForAllParagraphs() {
+    if (!focusModeEnabled) {
+      return;
+    }
+
+    const paragraphs = Array.from(
+      editor.querySelectorAll(":scope > .editor-paragraph"),
+    );
+    const activeParagraph = getActiveParagraph(editor);
+
+    syntaxHighlighter.scheduleBackgroundRefresh(paragraphs, {
+      excludeParagraph: activeParagraph,
+    });
+  }
+
+  function scheduleFocusUpdate(options = {}) {
+    const { followCaret = false } = options;
+    pendingFollowCaret = pendingFollowCaret || followCaret;
+
+    if (focusUpdateRaf !== null) {
+      return;
+    }
+
+    focusUpdateRaf = window.requestAnimationFrame(() => {
+      focusUpdateRaf = null;
+      const shouldFollow = pendingFollowCaret;
+      pendingFollowCaret = false;
+      updateFocusParagraph({ followCaret: shouldFollow });
+    });
+  }
+
   function findSentenceBounds(text, caretOffset) {
     if (!text) {
       return { start: 0, end: 0 };
@@ -446,7 +504,7 @@ const fileOperations = createFileOperations({
       focusLevel === FOCUS_LEVEL_SENTENCE,
     );
     updateFocusControlState();
-    updateFocusParagraph({ followCaret });
+    scheduleFocusUpdate({ followCaret });
   }
 
   function updateFocusParagraph(options = {}) {
@@ -457,36 +515,60 @@ const fileOperations = createFileOperations({
 
     if (!focusModeEnabled) {
       clearSentenceHighlights();
+      clearSyntaxHighlights();
+      previousActiveParagraph = null;
       if (followCaret) {
         scheduleCaretVisibilityUpdate();
       }
       return;
     }
 
-    const activeParagraph = getActiveParagraph(editor);
-    if (activeParagraph) {
-      setActiveParagraph(editor, activeParagraph);
-      if (focusLevel === FOCUS_LEVEL_SENTENCE && !isComposing) {
-        clearSentenceHighlights(activeParagraph);
-        applySentenceFocusToParagraph(activeParagraph);
-      } else {
-        clearSentenceHighlights();
-      }
-      if (followCaret) {
-        scheduleCaretVisibilityUpdate();
-      }
-      return;
+    const detectedParagraph = getActiveParagraph(editor);
+    const fallbackParagraph = editor.querySelector(
+      ":scope > .editor-paragraph",
+    );
+    const nextActiveParagraph = detectedParagraph || fallbackParagraph || null;
+
+    setActiveParagraph(editor, nextActiveParagraph);
+
+    if (
+      previousActiveParagraph &&
+      previousActiveParagraph !== nextActiveParagraph
+    ) {
+      unwrapSentenceHighlights(previousActiveParagraph);
+      syntaxHighlighter.queueParagraph(previousActiveParagraph);
     }
 
-    const firstParagraph = editor.querySelector(":scope > .editor-paragraph");
-    setActiveParagraph(editor, firstParagraph);
-
-    if (firstParagraph && focusLevel === FOCUS_LEVEL_SENTENCE && !isComposing) {
-      clearSentenceHighlights(firstParagraph);
-      applySentenceFocusToParagraph(firstParagraph);
-    } else {
+    if (!nextActiveParagraph) {
       clearSentenceHighlights();
+      clearSyntaxHighlights();
+      previousActiveParagraph = null;
+      if (followCaret) {
+        scheduleCaretVisibilityUpdate();
+      }
+      return;
     }
+
+    if (focusLevel === FOCUS_LEVEL_SENTENCE && !isComposing) {
+      if (previousActiveParagraph !== nextActiveParagraph) {
+        clearSentenceHighlights(nextActiveParagraph);
+      }
+      applySentenceFocusToParagraph(nextActiveParagraph);
+    } else {
+      unwrapSentenceHighlights(nextActiveParagraph);
+      if (
+        previousActiveParagraph &&
+        previousActiveParagraph !== nextActiveParagraph
+      ) {
+        unwrapSentenceHighlights(previousActiveParagraph);
+      }
+    }
+
+    applySyntaxHighlightsToParagraph(nextActiveParagraph, {
+      preserveSelection: true,
+    });
+
+    previousActiveParagraph = nextActiveParagraph;
 
     if (followCaret) {
       scheduleCaretVisibilityUpdate();
@@ -502,9 +584,12 @@ const fileOperations = createFileOperations({
 
     if (enabled) {
       updateFocusParagraph({ followCaret: true });
+      scheduleSyntaxHighlightForAllParagraphs();
     } else {
       setActiveParagraph(editor, null);
+      previousActiveParagraph = null;
       clearSentenceHighlights();
+      clearSyntaxHighlights();
       closeFocusMenu();
     }
   }
@@ -556,7 +641,7 @@ const fileOperations = createFileOperations({
 
   editor.addEventListener("input", () => {
     markUnsavedChanges();
-    updateFocusParagraph({ followCaret: true });
+    scheduleFocusUpdate({ followCaret: true });
     updateWordCount();
   });
 
@@ -571,7 +656,7 @@ const fileOperations = createFileOperations({
 
     insertPlainTextAtSelection(editor, normalizedText);
     markUnsavedChanges();
-    updateFocusParagraph({ followCaret: true });
+    scheduleFocusUpdate({ followCaret: true });
     updateWordCount();
   });
 
@@ -580,7 +665,7 @@ const fileOperations = createFileOperations({
       event.preventDefault();
       splitParagraphAtSelection(editor);
       markUnsavedChanges();
-      updateFocusParagraph({ followCaret: true });
+      scheduleFocusUpdate({ followCaret: true });
       return;
     }
 
@@ -607,16 +692,12 @@ const fileOperations = createFileOperations({
     }
 
     if (event.key === "Backspace" || event.key === "Delete") {
-      window.requestAnimationFrame(() =>
-        updateFocusParagraph({ followCaret: true }),
-      );
+      scheduleFocusUpdate({ followCaret: true });
       return;
     }
 
     if (isCaretNavigationKey(event)) {
-      window.requestAnimationFrame(() =>
-        updateFocusParagraph({ followCaret: true }),
-      );
+      scheduleFocusUpdate({ followCaret: true });
     }
   });
 
@@ -626,7 +707,7 @@ const fileOperations = createFileOperations({
 
   editor.addEventListener("compositionend", () => {
     isComposing = false;
-    updateFocusParagraph({ followCaret: true });
+    scheduleFocusUpdate({ followCaret: true });
   });
 
   document.addEventListener("keydown", (event) => {
@@ -654,13 +735,13 @@ const fileOperations = createFileOperations({
   });
 
   editor.addEventListener("keyup", () =>
-    updateFocusParagraph({ followCaret: false }),
+    scheduleFocusUpdate({ followCaret: false }),
   );
   editor.addEventListener("click", () =>
-    updateFocusParagraph({ followCaret: true }),
+    scheduleFocusUpdate({ followCaret: true }),
   );
   editor.addEventListener("focus", () =>
-    updateFocusParagraph({ followCaret: true }),
+    scheduleFocusUpdate({ followCaret: true }),
   );
 
   document.addEventListener("selectionchange", () => {
@@ -675,7 +756,7 @@ const fileOperations = createFileOperations({
     if (!editor.contains(selection.anchorNode)) {
       return;
     }
-    updateFocusParagraph({ followCaret: false });
+    scheduleFocusUpdate({ followCaret: false });
   });
 
   // Menu handling
@@ -683,30 +764,23 @@ const fileOperations = createFileOperations({
   const menuScreen = document.querySelector("#menu-screen");
   const menuCloseButton = document.querySelector("#menu-close-button");
   const fontOptions = Array.from(document.querySelectorAll(".font-option"));
+  const syntaxPosOptions = Array.from(
+    document.querySelectorAll(".syntax-pos-option"),
+  );
   const menuIconTabs = Array.from(document.querySelectorAll(".menu-icon-tab"));
   const menuSections = Array.from(document.querySelectorAll(".menu-section"));
-
-  console.log("Menu elements found:", {
-    menuButton: !!menuButton,
-    menuScreen: !!menuScreen,
-    menuCloseButton: !!menuCloseButton,
-    fontOptions: fontOptions.length,
-    menuIconTabs: menuIconTabs.length,
-    menuSections: menuSections.length,
-  });
 
   if (
     menuButton &&
     menuScreen &&
     menuCloseButton &&
     fontOptions.length > 0 &&
+    syntaxPosOptions.length > 0 &&
     menuIconTabs.length > 0 &&
     menuSections.length > 0
   ) {
-    console.log("Setting up menu event listeners...");
     let menuOpen = false;
     let currentFont = readFontPreference();
-    let currentTab = "typography";
 
     function applyFont(font) {
       currentFont = font;
@@ -725,16 +799,21 @@ const fileOperations = createFileOperations({
       });
     }
 
-    function switchMenuTab(tabName) {
-      currentTab = tabName;
+    function updateSyntaxOptionsUI() {
+      syntaxPosOptions.forEach((button) => {
+        const pos = button.dataset.pos;
+        const isEnabled = Boolean(pos && syntaxPosSettings[pos]);
+        button.classList.toggle("is-enabled", isEnabled);
+        button.setAttribute("aria-pressed", String(isEnabled));
+      });
+    }
 
-      // Update tab buttons
+    function switchMenuTab(tabName) {
       menuIconTabs.forEach((tab) => {
         const isActive = tab.dataset.tab === tabName;
         tab.classList.toggle("active", isActive);
       });
 
-      // Update sections
       menuSections.forEach((section) => {
         const isActive = section.dataset.tab === tabName;
         section.classList.toggle("active", isActive);
@@ -742,15 +821,12 @@ const fileOperations = createFileOperations({
     }
 
     function openMenu() {
-      console.log("Opening menu...");
       menuOpen = true;
       menuScreen.hidden = false;
       menuButton.setAttribute("aria-expanded", "true");
-      console.log("Menu opened, menuScreen.hidden:", menuScreen.hidden);
     }
 
     function closeMenu() {
-      console.log("Closing menu...");
       menuOpen = false;
       menuScreen.hidden = true;
       menuButton.setAttribute("aria-expanded", "false");
@@ -758,7 +834,6 @@ const fileOperations = createFileOperations({
     }
 
     menuButton.addEventListener("click", () => {
-      console.log("Menu button clicked! menuOpen:", menuOpen);
       if (menuOpen) {
         closeMenu();
       } else {
@@ -788,6 +863,32 @@ const fileOperations = createFileOperations({
       });
     });
 
+    syntaxPosOptions.forEach((button) => {
+      button.addEventListener("click", () => {
+        const pos = button.dataset.pos;
+        if (
+          !pos ||
+          !Object.prototype.hasOwnProperty.call(syntaxPosSettings, pos)
+        ) {
+          return;
+        }
+
+        syntaxPosSettings = {
+          ...syntaxPosSettings,
+          [pos]: !syntaxPosSettings[pos],
+        };
+
+        writeSyntaxPosPreference(syntaxPosSettings);
+        updateSyntaxOptionsUI();
+        syntaxHighlighter.setSettings(syntaxPosSettings);
+
+        if (focusModeEnabled) {
+          scheduleFocusUpdate({ followCaret: false });
+          scheduleSyntaxHighlightForAllParagraphs();
+        }
+      });
+    });
+
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && menuOpen) {
         closeMenu();
@@ -796,6 +897,7 @@ const fileOperations = createFileOperations({
 
     // Initialize menu state
     switchMenuTab("typography");
+    updateSyntaxOptionsUI();
     applyFont(currentFont);
     closeMenu();
   }
@@ -809,6 +911,4 @@ const fileOperations = createFileOperations({
 
   applyFocusMode(focusModeEnabled);
   editor.focus();
-
-  console.log("App initialization complete!");
 })();
