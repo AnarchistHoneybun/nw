@@ -523,6 +523,7 @@ body {
   gap: 12px;
   padding: 12px;
   border-bottom: 1px solid var(--header-line);
+  justify-content: center;
 }
 
 .menu-icon-tab {
@@ -538,6 +539,30 @@ body {
   justify-content: center;
   transition: background-color 120ms ease;
   color: #999;
+}
+
+.menu-icon-tab svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  color: currentColor;
+}
+
+.menu-icon-tab svg path,
+.menu-icon-tab svg rect,
+.menu-icon-tab svg circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.menu-icon-tab svg polyline,
+.menu-icon-tab svg line,
+.menu-icon-tab svg polygon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .menu-icon-tab:hover,
@@ -645,8 +670,14 @@ body {
   gap: 8px;
 }
 
+.syntax-pos-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .syntax-pos-option {
-  width: 100%;
+  flex: 1 1 auto;
   padding: 10px 12px;
   border: 1px solid var(--header-line);
   border-radius: 6px;
@@ -659,7 +690,7 @@ body {
   text-align: left;
   display: flex;
   align-items: center;
-  gap: 10px;
+  min-height: 42px;
 }
 
 .syntax-pos-option:hover {
@@ -673,14 +704,29 @@ body {
 }
 
 .syntax-pos-option.is-enabled {
-  border-color: #c8ccd0;
+  background: var(--coral);
+  color: white;
+  border-color: var(--coral);
+  font-weight: 600;
 }
 
-.syntax-color-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
+.syntax-pos-option.is-enabled:hover {
+  background: #d85d50;
+  border-color: #d85d50;
+}
+
+.syntax-pos-option.is-enabled:focus-visible {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 2px rgba(235, 102, 88, 0.25);
+}
+
+.syntax-color-swatch {
+  width: 42px;
+  height: 42px;
+  display: block;
+  border-radius: 5px;
   flex: 0 0 auto;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .syntax-color-noun {
