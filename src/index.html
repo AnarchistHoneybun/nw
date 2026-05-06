@@ -106,7 +106,9 @@
             aria-label="Typography settings"
             title="Typography"
           >
-            🔤
+            <svg viewBox="0 0 256 256" aria-hidden="true" focusable="false">
+              <path d="M128,96H232a8,8,0,0,1,0,16H128a8,8,0,0,1,0-16Zm104,32H128a8,8,0,0,0,0,16H232a8,8,0,0,0,0-16Zm0,32H80a8,8,0,0,0,0,16H232a8,8,0,0,0,0-16Zm0,32H80a8,8,0,0,0,0,16H232a8,8,0,0,0,0-16ZM96,144a8,8,0,0,0,0-16H88V64h32v8a8,8,0,0,0,16,0V56a8,8,0,0,0-8-8H32a8,8,0,0,0-8,8V72a8,8,0,0,0,16,0V64H72v64H64a8,8,0,0,0,0,16Z" />
+            </svg>
           </button>
           <button
             class="menu-icon-tab"
@@ -114,7 +116,9 @@
             aria-label="Syntax highlight settings"
             title="Syntax Highlight"
           >
-            ✦
+            <svg viewBox="0 0 256 256" aria-hidden="true" focusable="false">
+              <path d="M253.66,106.34a8,8,0,0,0-11.32,0L192,156.69,107.31,72l50.35-50.34a8,8,0,1,0-11.32-11.32L96,60.69A16,16,0,0,0,93.18,79.5L72,100.69a16,16,0,0,0,0,22.62L76.69,128,18.34,186.34a8,8,0,0,0,3.13,13.25l72,24A7.88,7.88,0,0,0,96,224a8,8,0,0,0,5.66-2.34L136,187.31l4.69,4.69a16,16,0,0,0,22.62,0l21.19-21.18A16,16,0,0,0,203.31,168l50.35-50.34A8,8,0,0,0,253.66,106.34ZM93.84,206.85l-55-18.35L88,139.31,124.69,176ZM152,180.69,83.31,112,104,91.31,172.69,160Z" />
+            </svg>
           </button>
         </div>
 
@@ -150,48 +154,71 @@
                 Syntax highlighting is tied to Focus Mode for now.
               </p>
               <div class="syntax-options">
-                <button
-                  class="syntax-pos-option is-enabled"
-                  data-pos="noun"
-                  type="button"
-                >
-                  <span class="syntax-color-dot syntax-color-noun"></span>
-                  Nouns
-                </button>
-                <button
-                  class="syntax-pos-option is-enabled"
-                  data-pos="verb"
-                  type="button"
-                >
-                  <span class="syntax-color-dot syntax-color-verb"></span>
-                  Verbs
-                </button>
-                <button
-                  class="syntax-pos-option is-enabled"
-                  data-pos="adjective"
-                  type="button"
-                >
-                  <span class="syntax-color-dot syntax-color-adjective"></span>
-                  Adjectives
-                </button>
-                <button
-                  class="syntax-pos-option is-enabled"
-                  data-pos="adverb"
-                  type="button"
-                >
-                  <span class="syntax-color-dot syntax-color-adverb"></span>
-                  Adverbs
-                </button>
-                <button
-                  class="syntax-pos-option is-enabled"
-                  data-pos="conjunction"
-                  type="button"
-                >
+                <div class="syntax-pos-item">
+                  <button
+                    class="syntax-pos-option is-enabled"
+                    data-pos="noun"
+                    type="button"
+                  >
+                    Nouns
+                  </button>
                   <span
-                    class="syntax-color-dot syntax-color-conjunction"
+                    class="syntax-color-swatch syntax-color-noun"
+                    aria-hidden="true"
                   ></span>
-                  Conjunctions
-                </button>
+                </div>
+                <div class="syntax-pos-item">
+                  <button
+                    class="syntax-pos-option is-enabled"
+                    data-pos="verb"
+                    type="button"
+                  >
+                    Verbs
+                  </button>
+                  <span
+                    class="syntax-color-swatch syntax-color-verb"
+                    aria-hidden="true"
+                  ></span>
+                </div>
+                <div class="syntax-pos-item">
+                  <button
+                    class="syntax-pos-option is-enabled"
+                    data-pos="adjective"
+                    type="button"
+                  >
+                    Adjectives
+                  </button>
+                  <span
+                    class="syntax-color-swatch syntax-color-adjective"
+                    aria-hidden="true"
+                  ></span>
+                </div>
+                <div class="syntax-pos-item">
+                  <button
+                    class="syntax-pos-option is-enabled"
+                    data-pos="adverb"
+                    type="button"
+                  >
+                    Adverbs
+                  </button>
+                  <span
+                    class="syntax-color-swatch syntax-color-adverb"
+                    aria-hidden="true"
+                  ></span>
+                </div>
+                <div class="syntax-pos-item">
+                  <button
+                    class="syntax-pos-option is-enabled"
+                    data-pos="conjunction"
+                    type="button"
+                  >
+                    Conjunctions
+                  </button>
+                  <span
+                    class="syntax-color-swatch syntax-color-conjunction"
+                    aria-hidden="true"
+                  ></span>
+                </div>
               </div>
             </div>
           </div>
